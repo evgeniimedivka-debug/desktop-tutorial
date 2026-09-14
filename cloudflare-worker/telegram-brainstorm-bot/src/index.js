@@ -4,7 +4,7 @@
 // но без Pipedream).
 
 const BOT_USERNAME = "OzonAnnabot";
-const HISTORY_LIMIT = 20; // последних сообщений в памяти чата (~10 обменов)
+const HISTORY_LIMIT = 100; // последних сообщений в памяти чата (~50 обменов)
 
 const SYSTEM_PROMPT = `Ты — участник мозгового штурма в рабочем чате Евгения (владелец) и Анны (менеджер Ozon/ВК).
 Бизнес: Milis Cosmo (косметика собственного производства, WB/Ozon), Milis Decor (ПУ-панели, Avito), art.Angel (блютус-адаптеры, Ozon).
