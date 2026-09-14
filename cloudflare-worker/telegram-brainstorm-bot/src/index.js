@@ -31,15 +31,25 @@ export default {
 
 async function handleUpdate(update, env) {
   const msg = update.message;
-  if (!msg || !msg.text) return;
+  if (!msg || !msg.text) {
+    console.log(`[debug] skip: no message/text. keys=${Object.keys(update)}`);
+    return;
+  }
 
   // Работаем только в целевой группе мозгового штурма, не в личке с Анной
   // (там та же бот-учётка обслуживает отдельную логику Ozon-эскалаций).
-  if (String(msg.chat.id) !== String(env.GROUP_CHAT_ID)) return;
+  if (String(msg.chat.id) !== String(env.GROUP_CHAT_ID)) {
+    console.log(`[debug] skip: chat.id=${msg.chat.id} != GROUP_CHAT_ID=${env.GROUP_CHAT_ID}`);
+    return;
+  }
 
   const isMention = msg.text.includes(`@${BOT_USERNAME}`);
   const isReplyToBot = msg.reply_to_message?.from?.is_bot === true;
-  if (!isMention && !isReplyToBot) return;
+  if (!isMention && !isReplyToBot) {
+    console.log(`[debug] skip: no mention/reply. text=${msg.text}`);
+    return;
+  }
+  console.log(`[debug] processing message: ${msg.text}`);
 
   let replyText;
   try {
@@ -68,7 +78,7 @@ async function handleUpdate(update, env) {
     return;
   }
 
-  await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+  const tgRes = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -77,4 +87,7 @@ async function handleUpdate(update, env) {
       reply_to_message_id: msg.message_id,
     }),
   });
+  if (!tgRes.ok) {
+    console.log(`[warn] Telegram sendMessage error: ${tgRes.status} ${await tgRes.text()}`);
+  }
 }
