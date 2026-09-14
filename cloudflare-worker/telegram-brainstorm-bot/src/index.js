@@ -4,6 +4,7 @@
 // но без Pipedream).
 
 const BOT_USERNAME = "OzonAnnabot";
+const HISTORY_LIMIT = 20; // последних сообщений в памяти чата (~10 обменов)
 
 const SYSTEM_PROMPT = `Ты — участник мозгового штурма в рабочем чате Евгения (владелец) и Анны (менеджер Ozon/ВК).
 Бизнес: Milis Cosmo (косметика собственного производства, WB/Ozon), Milis Decor (ПУ-панели, Avito), art.Angel (блютус-адаптеры, Ozon).
@@ -41,6 +42,10 @@ async function handleUpdate(update, env) {
   const isReplyToBot = msg.reply_to_message?.from?.is_bot === true;
   if (!isMention && !isReplyToBot) return;
 
+  const historyKey = `history:${msg.chat.id}`;
+  const history = (await env.CHAT_HISTORY.get(historyKey, "json")) || [];
+  history.push({ role: "user", content: `${msg.from.first_name}: ${msg.text}` });
+
   let replyText;
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -54,7 +59,7 @@ async function handleUpdate(update, env) {
         model: "claude-sonnet-4-5", // проверить актуальный ID модели в docs.claude.com перед деплоем
         max_tokens: 1024,
         system: SYSTEM_PROMPT,
-        messages: [{ role: "user", content: `${msg.from.first_name}: ${msg.text}` }],
+        messages: history,
       }),
     });
     if (!res.ok) {
@@ -67,6 +72,10 @@ async function handleUpdate(update, env) {
     console.log(`[warn] Anthropic API error: ${e.message}`);
     return;
   }
+
+  history.push({ role: "assistant", content: replyText });
+  const trimmedHistory = history.slice(-HISTORY_LIMIT);
+  await env.CHAT_HISTORY.put(historyKey, JSON.stringify(trimmedHistory));
 
   const tgRes = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
     method: "POST",

@@ -15,6 +15,8 @@
 cd cloudflare-worker/telegram-brainstorm-bot
 npm install
 npx wrangler login          # один раз, откроет браузер для авторизации
+npx wrangler kv namespace create CHAT_HISTORY
+                             # выведет id — вставить в wrangler.toml, в [[kv_namespaces]]
 npx wrangler deploy         # публикует worker, выведет URL вида
                              # https://telegram-brainstorm-bot.<ваш-субдомен>.workers.dev
 ```
@@ -74,6 +76,19 @@ Webhook URL не меняется — `setWebhook` повторно вызыва
 - `@BotFather` → `/mybots` → выбрать бота → «Bot Settings» → «Group Privacy» → «Turn off»
 - Затем удалить бота из группы и добавить заново — иначе изменение может не применится к уже существующему членству.
 
+## Память переписки
+
+Бот хранит в Cloudflare KV (`CHAT_HISTORY`) последние 20 сообщений чата
+(~10 обменов) и передаёт их в Anthropic API как контекст — учитывает,
+что обсуждали раньше, не нужно каждый раз объяснять заново. Хранится
+отдельно по `chat_id`. Старые сообщения за пределами лимита просто
+обрезаются (без ошибок). Посмотреть/очистить память вручную:
+
+```bash
+npx wrangler kv key get "history:<GROUP_CHAT_ID>" --binding=CHAT_HISTORY --remote
+npx wrangler kv key delete "history:<GROUP_CHAT_ID>" --binding=CHAT_HISTORY --remote
+```
+
 ## Проверка (definition of done)
 
 - [ ] Сообщение с `@OzonAnnabot` в группе → ответ в течение ~5-10 сек.
@@ -81,6 +96,7 @@ Webhook URL не меняется — `setWebhook` повторно вызыва
 - [ ] Сообщения без упоминания/reply бот игнорирует.
 - [ ] Личка с Анной (Ozon-эскалации) этой логикой не затронута.
 - [ ] Токены/ключи нигде в коде — только `wrangler secret`.
+- [ ] Бот помнит предыдущие сообщения в рамках последних ~10 обменов.
 
 ## Чем отличается от варианта на Pipedream
 
@@ -89,5 +105,5 @@ Webhook URL не меняется — `setWebhook` повторно вызыва
   бесплатны в этом объёме нагрузки.
 - Нужен `npx wrangler deploy` при каждом изменении кода (в Pipedream —
   правка прямо в веб-редакторе).
-- Ограничения v1 (без истории переписки, без rate-limit) те же — см. ТЗ,
-  раздел 7.
+- Rate-limit по числу запросов к Anthropic API по-прежнему не сделан —
+  см. ТЗ, раздел 7 (актуально, если объём переписки сильно вырастет).
