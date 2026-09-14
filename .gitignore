@@ -1,0 +1,4 @@
+content_factory/config.yaml
+content_factory/output/
+__pycache__/
+*.pyc

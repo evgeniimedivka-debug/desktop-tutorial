@@ -1,0 +1,35 @@
+# Скопируйте в config.yaml и заполните. config.yaml в .gitignore — не коммитить с ключами.
+
+anthropic:
+  api_key: "sk-ant-..."
+  model: "claude-sonnet-5"
+
+heygen:
+  api_key: "..."
+  avatar_id: "..."          # ID аватара, выбранного заранее в app.heygen.com
+  voice_id: "..."           # ID голоса (рус. язык)
+  poll_interval_sec: 15
+  poll_timeout_sec: 900
+
+cloudinary:
+  cloud_name: "..."
+  api_key: "..."
+  api_secret: "..."
+
+telegram:
+  bot_token: "..."
+  chat_id: "..."            # ваш личный chat_id (узнать через @userinfobot)
+
+instagram:
+  business_account_id: "..."   # IG_BUSINESS_ACCOUNT_ID
+  access_token: "..."          # долгоживущий токен с instagram_content_publish
+  graph_api_version: "v21.0"
+
+brand:
+  name: "Milis Cosmo"
+  ai_disclosure_suffix: "\n\nСоздано с использованием ИИ · Milis Cosmo"
+
+paths:
+  content_bank: "content_bank.yaml"
+  tracker_xlsx: "Milis_Cosmo_Content_Plan.xlsx"   # путь к вашему трекеру
+  output_dir: "output"
