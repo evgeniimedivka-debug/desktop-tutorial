@@ -1,5 +1,15 @@
-# Welcome to GitHub Desktop!
+# Telegram-бот для мозгового штурма
 
-This is your README. READMEs are where you can communicate what your project is and how to use it.
+Реализация бота-участника рабочей Telegram-группы (Евгений + Анна) для
+мозгового штурма по бизнесу: Milis Cosmo, Milis Decor, art.Angel.
+ТЗ: [`docs/tz_telegram_brainstorm_bot.md`](./docs/tz_telegram_brainstorm_bot.md).
 
-Write your name on line 6, save it, and then head back to GitHub Desktop.
+Два равнозначных варианта деплоя — выбрать один:
+
+- [`cloudflare-worker/telegram-brainstorm-bot/`](./cloudflare-worker/telegram-brainstorm-bot/)
+  — без Pipedream, webhook принимает Cloudflare Worker напрямую. Бесплатно,
+  без своего сервера. Рекомендуется.
+- [`pipedream/telegram-brainstorm-bot/`](./pipedream/telegram-brainstorm-bot/)
+  — исходный вариант из ТЗ, через Pipedream workflow.
+
+Инструкции по деплою — в README внутри каждой папки.
