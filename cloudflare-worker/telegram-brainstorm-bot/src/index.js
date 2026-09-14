@@ -31,25 +31,15 @@ export default {
 
 async function handleUpdate(update, env) {
   const msg = update.message;
-  if (!msg || !msg.text) {
-    console.log(`[debug] skip: no message/text. keys=${Object.keys(update)}`);
-    return;
-  }
+  if (!msg || !msg.text) return;
 
   // Работаем только в целевой группе мозгового штурма, не в личке с Анной
   // (там та же бот-учётка обслуживает отдельную логику Ozon-эскалаций).
-  if (String(msg.chat.id) !== String(env.GROUP_CHAT_ID)) {
-    console.log(`[debug] skip: chat.id=${msg.chat.id} != GROUP_CHAT_ID=${env.GROUP_CHAT_ID}`);
-    return;
-  }
+  if (String(msg.chat.id) !== String(env.GROUP_CHAT_ID)) return;
 
   const isMention = msg.text.includes(`@${BOT_USERNAME}`);
   const isReplyToBot = msg.reply_to_message?.from?.is_bot === true;
-  if (!isMention && !isReplyToBot) {
-    console.log(`[debug] skip: no mention/reply. text=${msg.text}`);
-    return;
-  }
-  console.log(`[debug] processing message: ${msg.text}`);
+  if (!isMention && !isReplyToBot) return;
 
   let replyText;
   try {
