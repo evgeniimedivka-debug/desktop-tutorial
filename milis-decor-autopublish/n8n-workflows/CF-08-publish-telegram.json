@@ -9,7 +9,7 @@
         "responseMode": "onReceived"
       },
       "id": "webhook-nocodb-01",
-      "name": "Webhook от NocoDB (Статус=одобрено)",
+      "name": "Webhook от NocoDB (Одобрено владельцем=true)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [0, 0],
@@ -44,11 +44,14 @@
     {
       "parameters": {
         "conditions": {
+          "boolean": [
+            { "value1": "={{$json[\"Одобрено владельцем\"]}}", "value2": true }
+          ],
           "string": [
             {
-              "value1": "={{$json.Статус публикации}}",
+              "value1": "={{$json[\"Статус публикации\"]}}",
               "operation": "equal",
-              "value2": "одобрено"
+              "value2": "на согласовании"
             }
           ]
         }
@@ -57,7 +60,33 @@
       "name": "Ещё не опубликовано? (защита от дублей)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [440, 0]
+      "position": [440, 0],
+      "notes": "Триггер — чекбокс 'Одобрено владельцем', который владелец ставит сам в Gallery-view «Согласование». Статус ещё должен быть 'на согласовании' — иначе запись уже в работе (защита от повторного срабатывания webhook'а)."
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "table": "mbv0dd92dx4irfp",
+        "projectId": "pgcrh775xcev3n6",
+        "id": "={{$json.Id}}",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldName": "Статус публикации", "fieldValue": "одобрено" },
+            { "fieldName": "Дата одобрения", "fieldValue": "={{$now.toISO()}}" }
+          ]
+        }
+      },
+      "id": "nocodb-mark-approved-01",
+      "name": "NocoDB: статус = одобрено",
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 3,
+      "position": [660, 0],
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "REPLACE_ME",
+          "name": "Milis Decor - NocoDB"
+        }
+      }
     },
     {
       "parameters": {
@@ -75,7 +104,7 @@
       "name": "Видео или фото?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [660, -80]
+      "position": [880, -80]
     },
     {
       "parameters": {
@@ -194,13 +223,16 @@
     }
   ],
   "connections": {
-    "Webhook от NocoDB (Статус=одобрено)": {
+    "Webhook от NocoDB (Одобрено владельцем=true)": {
       "main": [[{ "node": "NocoDB: получить свежую запись", "type": "main", "index": 0 }]]
     },
     "NocoDB: получить свежую запись": {
       "main": [[{ "node": "Ещё не опубликовано? (защита от дублей)", "type": "main", "index": 0 }]]
     },
     "Ещё не опубликовано? (защита от дублей)": {
+      "main": [[{ "node": "NocoDB: статус = одобрено", "type": "main", "index": 0 }]]
+    },
+    "NocoDB: статус = одобрено": {
       "main": [[{ "node": "Видео или фото?", "type": "main", "index": 0 }]]
     },
     "Видео или фото?": {
@@ -225,6 +257,6 @@
   "settings": { "executionOrder": "v1" },
   "id": "cf-08-publish-telegram",
   "meta": {
-    "instructions": "1) chat_id канала @MilisDecor уже проверен (-1003914664264), бот уже админ с правом постить — доп. настройка Telegram не нужна. 2) Поля 'Тип контента', 'Файл (URL)', 'Подпись' — привести к реальным названиям колонок таблицы «Ролики» (переименовать в узлах при импорте, если у вас называются иначе). 3) 'Файл (URL)' должен быть публично доступной ссылкой (NocoDB attachment URL или ссылка на VPS) — Telegram Bot API поле file принимает URL напрямую. 4) Настроить в NocoDB webhook, описанный в nocodb-schema.md, на этот путь: /webhook/cf/publish-telegram."
+    "instructions": "1) chat_id канала @MilisDecor уже проверен (-1003914664264), бот уже админ с правом постить — доп. настройка Telegram не нужна. 2) Согласование — в отдельном Gallery-view NocoDB «Согласование» (см. nocodb-schema.md), не через бота и не через переписку: владелец сам ставит чекбокс 'Одобрено владельцем' на записи. 3) Поля 'Тип контента', 'Файл (URL)', 'Подпись' — привести к реальным названиям колонок таблицы «Ролики» (переименовать в узлах при импорте, если у вас называются иначе). 4) 'Файл (URL)' должен быть публично доступной ссылкой (NocoDB attachment URL или ссылка на VPS) — Telegram Bot API поле file принимает URL напрямую. 5) Настроить в NocoDB webhook, описанный в nocodb-schema.md, на этот путь: /webhook/cf/publish-telegram, условие — 'Одобрено владельцем' стало true."
   }
 }
