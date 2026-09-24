@@ -1,0 +1,136 @@
+{
+  "name": "CF-07 Одобрение контента через @miliscontentbot",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message", "callback_query"]
+      },
+      "id": "tg-trigger-01",
+      "name": "Telegram Trigger (владелец)",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [0, 0],
+      "webhookId": "cf07-approve",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "Milis Decor - Telegram Bot (@miliscontentbot)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.message?.chat?.id ?? $json.callback_query?.from?.id}}",
+              "operation": "equal",
+              "value2": 279156986
+            }
+          ]
+        }
+      },
+      "id": "guard-owner-01",
+      "name": "Только владелец (chat_id 279156986)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [220, 0],
+      "notes": "Отбрасывает любые сообщения не от владельца (chat_id 279156986)."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Достаём id записи NocoDB.\n// Вариант A: инлайн-кнопка \"✅ Одобрить\" с callback_data = \"approve:<recordId>\"\n// Вариант B: текстовая команда \"/approve <recordId>\"\nconst cq = $json.callback_query;\nconst msg = $json.message;\n\nlet recordId = null;\nlet mode = null;\n\nif (cq && typeof cq.data === 'string' && cq.data.startsWith('approve:')) {\n  recordId = cq.data.split(':')[1];\n  mode = 'callback';\n} else if (msg && typeof msg.text === 'string') {\n  const m = msg.text.trim().match(/^\\/approve[_\\s]+(\\d+)$/i);\n  if (m) {\n    recordId = m[1];\n    mode = 'command';\n  }\n}\n\nif (!recordId) {\n  return [{ json: { skip: true } }];\n}\n\nreturn [{\n  json: {\n    skip: false,\n    mode,\n    recordId: Number(recordId),\n    replyChatId: (cq ? cq.from.id : msg.chat.id),\n    callbackQueryId: cq ? cq.id : null\n  }\n}];"
+      },
+      "id": "extract-record-id-01",
+      "name": "Извлечь ID записи",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.skip}}",
+              "value2": false
+            }
+          ]
+        }
+      },
+      "id": "skip-filter-01",
+      "name": "Пропустить, если не команда одобрения",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "table": "mbv0dd92dx4irfp",
+        "projectId": "pgcrh775xcev3n6",
+        "id": "={{$json.recordId}}",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldName": "Одобрено владельцем", "fieldValue": "true" },
+            { "fieldName": "Статус публикации", "fieldValue": "одобрено" },
+            { "fieldName": "Дата одобрения", "fieldValue": "={{$now.toISO()}}" }
+          ]
+        }
+      },
+      "id": "nocodb-update-01",
+      "name": "NocoDB: проставить одобрение",
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 3,
+      "position": [880, 0],
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "REPLACE_ME",
+          "name": "Milis Decor - NocoDB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{$json.replyChatId}}",
+        "text": "✅ Одобрено (запись #{{$node[\"Извлечь ID записи\"].json[\"recordId\"]}}). Встанет в очередь на публикацию в Telegram и Instagram."
+      },
+      "id": "tg-confirm-01",
+      "name": "Подтверждение владельцу",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1100, 0],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "Milis Decor - Telegram Bot (@miliscontentbot)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger (владелец)": {
+      "main": [[{ "node": "Только владелец (chat_id 279156986)", "type": "main", "index": 0 }]]
+    },
+    "Только владелец (chat_id 279156986)": {
+      "main": [[{ "node": "Извлечь ID записи", "type": "main", "index": 0 }]]
+    },
+    "Извлечь ID записи": {
+      "main": [[{ "node": "Пропустить, если не команда одобрения", "type": "main", "index": 0 }]]
+    },
+    "Пропустить, если не команда одобрения": {
+      "main": [[{ "node": "NocoDB: проставить одобрение", "type": "main", "index": 0 }]]
+    },
+    "NocoDB: проставить одобрение": {
+      "main": [[{ "node": "Подтверждение владельцу", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "id": "cf-07-approve-via-bot",
+  "meta": {
+    "instructions": "1) Импортировать в n8n. 2) Создать credential 'Milis Decor - Telegram Bot' (токен бота @miliscontentbot, рекомендуется перевыпустить через BotFather /revoke, т.к. текущий засветился в открытом виде). 3) Создать credential 'Milis Decor - NocoDB' (personal API token из NocoDB → Account Settings → Tokens). 4) В workflow, который шлёт готовый контент владельцу (CF-01..05, шаг отправки в личку), добавить inline-кнопку callback_data='approve:<id записи NocoDB>' — это вариант A из README. Вариант B (команда /approve <id>) работает уже из этого файла без правок в CF-01..05. 5) Включить workflow."
+  }
+}

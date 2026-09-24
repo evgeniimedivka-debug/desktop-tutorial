@@ -1,0 +1,230 @@
+{
+  "name": "CF-08 Публикация в Telegram-канал @MilisDecor",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cf/publish-telegram",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived"
+      },
+      "id": "webhook-nocodb-01",
+      "name": "Webhook от NocoDB (Статус=одобрено)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "cf-publish-telegram",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "Milis Decor - x-cf-secret (тот же, что у /webhook/cf/render)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "table": "mbv0dd92dx4irfp",
+        "projectId": "pgcrh775xcev3n6",
+        "id": "={{$json.body.data.rowId ?? $json.body.rowId ?? $json.body.data.Id}}"
+      },
+      "id": "nocodb-get-01",
+      "name": "NocoDB: получить свежую запись",
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 3,
+      "position": [220, 0],
+      "notes": "Перечитываем запись по id из payload webhook'а, а не доверяем телу целиком — на момент обработки статус мог уже измениться.",
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "REPLACE_ME",
+          "name": "Milis Decor - NocoDB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.Статус публикации}}",
+              "operation": "equal",
+              "value2": "одобрено"
+            }
+          ]
+        }
+      },
+      "id": "idempotency-guard-01",
+      "name": "Ещё не опубликовано? (защита от дублей)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.Тип контента}}",
+              "operation": "equal",
+              "value2": "видео"
+            }
+          ]
+        }
+      },
+      "id": "type-switch-01",
+      "name": "Видео или фото?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [660, -80]
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "send",
+        "chatId": "@MilisDecor",
+        "binaryData": false,
+        "file": "={{$json[\"Файл (URL)\"]}}",
+        "caption": "={{$json[\"Подпись\"]}}",
+        "additionalFields": { "parse_mode": "HTML" }
+      },
+      "id": "tg-send-video-01",
+      "name": "sendVideo в канал",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [880, -160],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "Milis Decor - Telegram Bot (@miliscontentbot)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "photo",
+        "operation": "send",
+        "chatId": "@MilisDecor",
+        "binaryData": false,
+        "file": "={{$json[\"Файл (URL)\"]}}",
+        "caption": "={{$json[\"Подпись\"]}}",
+        "additionalFields": { "parse_mode": "HTML" }
+      },
+      "id": "tg-send-photo-01",
+      "name": "sendPhoto в канал",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [880, 0],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "Milis Decor - Telegram Bot (@miliscontentbot)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "table": "mbv0dd92dx4irfp",
+        "projectId": "pgcrh775xcev3n6",
+        "id": "={{$node[\"NocoDB: получить свежую запись\"].json.Id}}",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldName": "Статус публикации", "fieldValue": "опубликовано в Telegram" },
+            { "fieldName": "Дата публикации TG", "fieldValue": "={{$now.toISO()}}" },
+            { "fieldName": "TG message id", "fieldValue": "={{$json.result?.message_id ?? $json.message_id}}" }
+          ]
+        }
+      },
+      "id": "nocodb-mark-published-01",
+      "name": "NocoDB: статус = опубликовано в Telegram",
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 3,
+      "position": [1100, -80],
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "REPLACE_ME",
+          "name": "Milis Decor - NocoDB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "279156986",
+        "text": "⚠️ Не удалось опубликовать в Telegram запись #{{$node[\"NocoDB: получить свежую запись\"].json.Id}}: {{$json.error?.message ?? 'см. лог n8n'}}"
+      },
+      "id": "tg-notify-error-01",
+      "name": "Уведомить владельца об ошибке",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1100, 200],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "Milis Decor - Telegram Bot (@miliscontentbot)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "table": "mbv0dd92dx4irfp",
+        "projectId": "pgcrh775xcev3n6",
+        "id": "={{$node[\"NocoDB: получить свежую запись\"].json.Id}}",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldName": "Статус публикации", "fieldValue": "ошибка публикации" },
+            { "fieldName": "Ошибка публикации", "fieldValue": "={{$json.error?.message ?? 'см. лог n8n'}}" }
+          ]
+        }
+      },
+      "id": "nocodb-mark-error-01",
+      "name": "NocoDB: статус = ошибка публикации",
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 3,
+      "position": [1320, 200],
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "REPLACE_ME",
+          "name": "Milis Decor - NocoDB"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook от NocoDB (Статус=одобрено)": {
+      "main": [[{ "node": "NocoDB: получить свежую запись", "type": "main", "index": 0 }]]
+    },
+    "NocoDB: получить свежую запись": {
+      "main": [[{ "node": "Ещё не опубликовано? (защита от дублей)", "type": "main", "index": 0 }]]
+    },
+    "Ещё не опубликовано? (защита от дублей)": {
+      "main": [[{ "node": "Видео или фото?", "type": "main", "index": 0 }]]
+    },
+    "Видео или фото?": {
+      "main": [
+        [{ "node": "sendVideo в канал", "type": "main", "index": 0 }],
+        [{ "node": "sendPhoto в канал", "type": "main", "index": 0 }]
+      ]
+    },
+    "sendVideo в канал": {
+      "main": [[{ "node": "NocoDB: статус = опубликовано в Telegram", "type": "main", "index": 0 }]],
+      "error": [[{ "node": "Уведомить владельца об ошибке", "type": "main", "index": 0 }]]
+    },
+    "sendPhoto в канал": {
+      "main": [[{ "node": "NocoDB: статус = опубликовано в Telegram", "type": "main", "index": 0 }]],
+      "error": [[{ "node": "Уведомить владельца об ошибке", "type": "main", "index": 0 }]]
+    },
+    "Уведомить владельца об ошибке": {
+      "main": [[{ "node": "NocoDB: статус = ошибка публикации", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "id": "cf-08-publish-telegram",
+  "meta": {
+    "instructions": "1) chat_id канала @MilisDecor уже проверен (-1003914664264), бот уже админ с правом постить — доп. настройка Telegram не нужна. 2) Поля 'Тип контента', 'Файл (URL)', 'Подпись' — привести к реальным названиям колонок таблицы «Ролики» (переименовать в узлах при импорте, если у вас называются иначе). 3) 'Файл (URL)' должен быть публично доступной ссылкой (NocoDB attachment URL или ссылка на VPS) — Telegram Bot API поле file принимает URL напрямую. 4) Настроить в NocoDB webhook, описанный в nocodb-schema.md, на этот путь: /webhook/cf/publish-telegram."
+  }
+}

@@ -1,0 +1,332 @@
+{
+  "name": "CF-09 Публикация в Instagram (Milis Decor)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cf/publish-instagram",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived"
+      },
+      "id": "webhook-nocodb-01",
+      "name": "Webhook от NocoDB (Статус=опубликовано в Telegram)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "cf-publish-instagram",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "Milis Decor - x-cf-secret (тот же, что у /webhook/cf/render)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "table": "mbv0dd92dx4irfp",
+        "projectId": "pgcrh775xcev3n6",
+        "id": "={{$json.body.data.rowId ?? $json.body.rowId ?? $json.body.data.Id}}"
+      },
+      "id": "nocodb-get-01",
+      "name": "NocoDB: получить свежую запись",
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 3,
+      "position": [220, 0],
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "REPLACE_ME",
+          "name": "Milis Decor - NocoDB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.Статус публикации}}",
+              "operation": "equal",
+              "value2": "опубликовано в Telegram"
+            }
+          ]
+        }
+      },
+      "id": "idempotency-guard-01",
+      "name": "Ещё не опубликовано в IG? (защита от дублей)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.Тип контента}}",
+              "operation": "equal",
+              "value2": "видео"
+            }
+          ]
+        }
+      },
+      "id": "type-switch-01",
+      "name": "Видео (Reels) или фото?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{$env.IG_USER_ID}}/media",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "media_type", "value": "REELS" },
+            { "name": "video_url", "value": "={{$json[\"Файл (URL)\"]}}" },
+            { "name": "caption", "value": "={{$json[\"Подпись\"]}}" }
+          ]
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi"
+      },
+      "id": "ig-create-container-video-01",
+      "name": "IG: создать контейнер (Reels)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, -140],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "REPLACE_ME",
+          "name": "Milis Decor - Instagram Graph API (System User token)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 15,
+        "unit": "seconds"
+      },
+      "id": "wait-container-ready-01",
+      "name": "Подождать обработку видео",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1100, -140]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/v21.0/{{$node[\"IG: создать контейнер (Reels)\"].json.id}}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [{ "name": "fields", "value": "status_code" }]
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi"
+      },
+      "id": "ig-check-status-01",
+      "name": "IG: проверить статус контейнера",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1320, -140],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "REPLACE_ME",
+          "name": "Milis Decor - Instagram Graph API (System User token)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.status_code}}",
+              "operation": "equal",
+              "value2": "FINISHED"
+            }
+          ]
+        }
+      },
+      "id": "finished-guard-01",
+      "name": "FINISHED? (иначе снова ждать)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1540, -140],
+      "notes": "false-выход зациклен обратно на 'Подождать обработку видео' (retry-цикл, максимум ~10 попыток задать вручную через counter, чтобы не зависнуть навечно при ERROR-статусе)."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{$env.IG_USER_ID}}/media",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "image_url", "value": "={{$json[\"Файл (URL)\"]}}" },
+            { "name": "caption", "value": "={{$json[\"Подпись\"]}}" }
+          ]
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi"
+      },
+      "id": "ig-create-container-photo-01",
+      "name": "IG: создать контейнер (фото)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 140],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "REPLACE_ME",
+          "name": "Milis Decor - Instagram Graph API (System User token)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{$env.IG_USER_ID}}/media_publish",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "creation_id", "value": "={{$json.id}}" }
+          ]
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi"
+      },
+      "id": "ig-publish-01",
+      "name": "IG: media_publish",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1760, 0],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "REPLACE_ME",
+          "name": "Milis Decor - Instagram Graph API (System User token)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "table": "mbv0dd92dx4irfp",
+        "projectId": "pgcrh775xcev3n6",
+        "id": "={{$node[\"NocoDB: получить свежую запись\"].json.Id}}",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldName": "Статус публикации", "fieldValue": "опубликовано в Instagram" },
+            { "fieldName": "Дата публикации IG", "fieldValue": "={{$now.toISO()}}" },
+            { "fieldName": "IG media id", "fieldValue": "={{$json.id}}" }
+          ]
+        }
+      },
+      "id": "nocodb-mark-published-01",
+      "name": "NocoDB: статус = опубликовано в Instagram",
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 3,
+      "position": [1980, 0],
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "REPLACE_ME",
+          "name": "Milis Decor - NocoDB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "279156986",
+        "text": "⚠️ Не удалось опубликовать в Instagram запись #{{$node[\"NocoDB: получить свежую запись\"].json.Id}}: {{$json.error?.message ?? 'см. лог n8n'}}"
+      },
+      "id": "tg-notify-error-01",
+      "name": "Уведомить владельца об ошибке",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1980, 260],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "Milis Decor - Telegram Bot (@miliscontentbot)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "table": "mbv0dd92dx4irfp",
+        "projectId": "pgcrh775xcev3n6",
+        "id": "={{$node[\"NocoDB: получить свежую запись\"].json.Id}}",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldName": "Статус публикации", "fieldValue": "ошибка публикации" },
+            { "fieldName": "Ошибка публикации", "fieldValue": "={{$json.error?.message ?? 'см. лог n8n'}}" }
+          ]
+        }
+      },
+      "id": "nocodb-mark-error-01",
+      "name": "NocoDB: статус = ошибка публикации",
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 3,
+      "position": [2200, 260],
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "REPLACE_ME",
+          "name": "Milis Decor - NocoDB"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook от NocoDB (Статус=опубликовано в Telegram)": {
+      "main": [[{ "node": "NocoDB: получить свежую запись", "type": "main", "index": 0 }]]
+    },
+    "NocoDB: получить свежую запись": {
+      "main": [[{ "node": "Ещё не опубликовано в IG? (защита от дублей)", "type": "main", "index": 0 }]]
+    },
+    "Ещё не опубликовано в IG? (защита от дублей)": {
+      "main": [[{ "node": "Видео (Reels) или фото?", "type": "main", "index": 0 }]]
+    },
+    "Видео (Reels) или фото?": {
+      "main": [
+        [{ "node": "IG: создать контейнер (Reels)", "type": "main", "index": 0 }],
+        [{ "node": "IG: создать контейнер (фото)", "type": "main", "index": 0 }]
+      ]
+    },
+    "IG: создать контейнер (Reels)": {
+      "main": [[{ "node": "Подождать обработку видео", "type": "main", "index": 0 }]],
+      "error": [[{ "node": "Уведомить владельца об ошибке", "type": "main", "index": 0 }]]
+    },
+    "Подождать обработку видео": {
+      "main": [[{ "node": "IG: проверить статус контейнера", "type": "main", "index": 0 }]]
+    },
+    "IG: проверить статус контейнера": {
+      "main": [[{ "node": "FINISHED? (иначе снова ждать)", "type": "main", "index": 0 }]]
+    },
+    "FINISHED? (иначе снова ждать)": {
+      "main": [
+        [{ "node": "IG: media_publish", "type": "main", "index": 0 }],
+        [{ "node": "Подождать обработку видео", "type": "main", "index": 0 }]
+      ]
+    },
+    "IG: создать контейнер (фото)": {
+      "main": [[{ "node": "IG: media_publish", "type": "main", "index": 0 }]],
+      "error": [[{ "node": "Уведомить владельца об ошибке", "type": "main", "index": 0 }]]
+    },
+    "IG: media_publish": {
+      "main": [[{ "node": "NocoDB: статус = опубликовано в Instagram", "type": "main", "index": 0 }]],
+      "error": [[{ "node": "Уведомить владельца об ошибке", "type": "main", "index": 0 }]]
+    },
+    "Уведомить владельца об ошибке": {
+      "main": [[{ "node": "NocoDB: статус = ошибка публикации", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "id": "cf-09-publish-instagram",
+  "meta": {
+    "instructions": "1) Сначала пройти instagram-setup-runbook.md целиком — без Facebook Page/Business Manager/IG Business-аккаунта этот workflow работать не может. 2) IG_USER_ID задать как переменную окружения n8n (Settings → Environments) или заменить {{$env.IG_USER_ID}} на статичное значение прямо в узлах. 3) credential 'facebookGraphApi' — System User token из Business Manager (см. runbook, шаг 5). 4) Цикл 'FINISHED? → снова ждать' — в проде добавить счётчик попыток (Code-нода с $executionId + статическая переменная), чтобы не зациклиться бесконечно на статусе ERROR/EXPIRED со стороны Meta. 5) NocoDB webhook на путь /webhook/cf/publish-instagram — см. nocodb-schema.md."
+  }
+}
