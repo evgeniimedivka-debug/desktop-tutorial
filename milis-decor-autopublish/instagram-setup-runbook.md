@@ -1,105 +1,98 @@
-# Instagram Graph API — настройка с нуля для Milis Decor
+# Instagram — настройка публикации (упрощённая схема, без Facebook Page)
 
-Ваш ответ: сейчас нет ни Facebook Business Manager, ни привязанного
-Instagram Business-аккаунта. Ниже — минимальный набор шагов через
-официальные бесплатные инструменты Meta, без платных сервисов.
+Обновлено под официальную схему **«Instagram API с входом через
+Instagram»** (Instagram Login for Business, актуальна с 2025 года) — она
+проще предыдущей: **не требует Facebook Page и Business Manager**,
+только сам профессиональный (business) аккаунт Instagram и Meta App.
 
-Эти шаги делаются в личном кабинете Meta вашими руками (логин, номер
-телефона для верификации, подтверждение владения) — автоматизация тут
-подключиться не может.
+Все шаги ниже делаются вами лично, в вашем браузере, под вашим
+Instagram/Meta-логином — это единственная часть задачи, которую
+физически не может выполнить автоматизация или я: вход и подтверждение
+доступа происходят на официальной странице Instagram, пароль там вводите
+только вы.
 
-## 1. Facebook Page для Milis Decor
-- facebook.com → Pages → Create Page.
-- Название: «Milis Decor», категория — что-то в духе «Home Decor» /
-  «Building Materials».
-- Без Page нельзя привязать Instagram Business-аккаунт к Graph API.
+## 1. Перевести аккаунт Milis Decor в профессиональный (Business)
 
-## 2. Meta Business Manager (business.facebook.com)
-- Create Account → название бизнеса «Milis Decor» (или общий бизнес-аккаунт
-  Milis, если хотите объединить с Milis Cosmo — можно оставить раздельно,
-  проще прав доступа).
-- Business Settings → Accounts → Pages → Add → привязать Page из шага 1.
+- В приложении Instagram: аккаунт → Settings → Account type and tools →
+  Switch to professional account → **Business**.
+- Facebook Page на этом шаге привязывать не обязательно — просто
+  пропустите предложение, если оно появится.
 
-## 3. Instagram-аккаунт Milis Decor → Business
-- В приложении Instagram: аккаунт Milis Decor → Settings → Account type
-  and tools → Switch to professional account → Business.
-- Привязать к Facebook Page из шага 1 (предложится в том же мастере).
-- В Business Manager: Business Settings → Accounts → Instagram accounts →
-  Add → подключить тот же IG-аккаунт.
+## 2. Создать Meta App
 
-## 4. Meta App (developers.facebook.com)
-- My Apps → Create App → тип **Business**.
-- Добавить продукт **Instagram Graph API** (не Basic Display — он для
-  чтения своих медиа, для публикации нужен Graph API через Business
-  Login).
-- App Settings → Basic: заполнить Privacy Policy URL (обязательное поле;
-  подойдёт страница на вашем сайте/маркетплейсе-визитке) — без этого
-  App не пройдёт даже базовую проверку для использования с реальным
-  IG-аккаунтом.
+- developers.facebook.com → My Apps → Create App → тип **Business**.
+- Добавить продукт **Instagram** → выбрать конфигурацию **«Instagram
+  API with Instagram Login»** (не Facebook Login for Business — это
+  старая схема с обязательной Page).
+- App Settings → Basic: заполнить Privacy Policy URL (обязательное
+  поле).
 
-## 5. Права доступа (permissions) и токен
-Нужны разрешения: `instagram_basic`, `instagram_content_publish`,
-`pages_show_list`, `pages_read_engagement`.
+## 3. Настроить OAuth redirect URI
 
-- Graph API Explorer (developers.facebook.com/tools/explorer) → выбрать
-  свой App → User Token → отметить перечисленные permissions → Generate
-  Access Token → войти под аккаунтом, у которого есть доступ к Page.
-- Это короткоживущий токен (~1 час) — дальше обменять на долгоживущий:
+- В настройках продукта Instagram → Instagram API setup → добавить
+  **Valid OAuth Redirect URI**. Подойдёт `https://n8n.31-130-131-58.sslip.io/webhook/cf/ig-oauth-callback`
+  (я разверну под него приёмный webhook, когда дойдём до обмена кода на
+  токен).
+
+## 4. Авторизация — ссылку соберу я, откроете и подтвердите вы
+
+Когда у вас будет App ID (Instagram App ID, не путать с Facebook App
+ID — в этой схеме они разные), пришлите его мне, и я соберу ссылку вида:
 
 ```
-GET https://graph.facebook.com/v21.0/oauth/access_token
-  ?grant_type=fb_exchange_token
-  &client_id=<APP_ID>
-  &client_secret=<APP_SECRET>
-  &fb_exchange_token=<КОРОТКИЙ_ТОКЕН>
+https://api.instagram.com/oauth/authorize
+  ?client_id=<INSTAGRAM_APP_ID>
+  &redirect_uri=<тот же URI, что в шаге 3>
+  &scope=instagram_business_basic,instagram_business_content_publish
+  &response_type=code
 ```
-Ответ — токен на ~60 дней.
 
-- Для промышленной эксплуатации (без ручного продления раз в 60 дней)
-  дальше нужен **System User token** в Business Manager (Business
-  Settings → Users → System Users → Add → назначить Page/IG asset →
-  Generate Token с теми же permissions) — такой токен не истекает по
-  времени, только при ревокации. Рекомендую сразу делать через System
-  User, чтобы не продлевать вручную каждые 2 месяца.
+Вы откроете её, войдёте под своим Instagram-логином Milis Decor,
+подтвердите доступ приложению. Instagram перенаправит на redirect_uri с
+`?code=...` в адресной строке — этот код (действует пару минут) нужно
+будет прислать мне, дальше обмен на токен я сделаю сам через API.
 
-## 6. Получить IG User ID (`ig-user-id`) для API-вызовов
+## 5. Обмен кода на токен (делаю я, через API, без вашего участия)
 
 ```
-GET https://graph.facebook.com/v21.0/<PAGE_ID>
-  ?fields=instagram_business_account
-  &access_token=<ТОКЕН>
+POST https://api.instagram.com/oauth/access_token
+  client_id=<INSTAGRAM_APP_ID>
+  client_secret=<INSTAGRAM_APP_SECRET>   (из Meta App, шаг 2)
+  grant_type=authorization_code
+  redirect_uri=<тот же URI>
+  code=<код из шага 4>
 ```
-В ответе — `instagram_business_account.id`, он же `ig-user-id`,
-используется в CF-09 (`n8n-workflows/CF-09-publish-instagram.json`).
+→ короткоживущий токен, дальше обменивается на долгоживущий (~60 дней):
+```
+GET https://graph.instagram.com/access_token
+  ?grant_type=ig_exchange_token
+  &client_secret=<INSTAGRAM_APP_SECRET>
+  &access_token=<короткий токен>
+```
 
-## 7. App Review (только если публикация не работает у обычных
-   пользователей / только у вас как у админа App)
-- Пока вы единственный, кто публикует под этим App (владелец = сам
-  бизнес), режим **Development** обычно достаточен — Graph API
-  разрешает вызовы от ролей App (Admin/Developer/Tester), назначенных
-  в App Roles, без прохождения полного Review.
-- Полный App Review (Advanced Access) нужен только если публикацию
-  будет делать сторонний сервис от имени множества клиентов — это не
-  ваш случай.
+## 6. Получить IG User ID
 
-## Что сохранить и передать в n8n (credential, не в NocoDB и не в git)
+```
+GET https://graph.instagram.com/v21.0/me?fields=user_id&access_token=<токен>
+```
 
-- `IG_USER_ID` — из шага 6
-- `ACCESS_TOKEN` (System User token) — из шага 5
-- Оба — в n8n: Credentials → HTTP Header Auth / Generic, используется
-  в `CF-09-publish-instagram.json`.
+## 7. Что передать в n8n (сделаю сам, как получу значения)
 
-## Ограничения Instagram Graph API, которые важно знать заранее
+- `IG_USER_ID` и `IG_ACCESS_TOKEN` — как переменные окружения n8n на
+  VPS. У меня нет shell-доступа к контейнеру n8n, чтобы прописать их
+  напрямую в `.env` — этот шаг тоже придётся сделать вам (или дать мне
+  доступ к серверу), либо я подставлю значения прямо в узлы workflow
+  CF-09 как константы (менее удобно при продлении токена раз в 60 дней,
+  но работает без доступа к серверу).
 
-- Публикация — только по **прямой публичной URL** на файл (n8n должен
-  отдать n8n-инстансу доступный извне `https://` URL картинки/видео,
-  не base64 и не локальный путь). Уточнить, откуда рендер CF-02..CF-05
-  хранит готовые файлы — если это NocoDB attachment или файл на VPS,
-  нужен публично доступный URL (например, отдать через nginx на VPS
-  или Attachment URL из NocoDB, если он публичный).
-- Reels: контейнер создаётся, но публикация возможна только после того,
-  как `status_code` контейнера станет `FINISHED` (обработка видео на
-  стороне Meta занимает от нескольких секунд до пары минут) — CF-09
-  это учитывает через поллинг.
-- Лимит: 25 публикаций на IG Business-аккаунт в сутки через API (для
-  вашего объёма — 1 видео + 2 фото в день по плану — с большим запасом).
+## Ограничения
+
+- Токен живёт ~60 дней, нужно продлевать (`ig_refresh_token` — тот же
+  принцип, что и exchange, но без пароля).
+- Reels: публикация возможна только после того, как контейнер получит
+  `status_code=FINISHED` — CF-09 это уже учитывает (поллинг каждые 15с).
+- Публикация — только по прямому публичному URL на файл; `video_url` в
+  таблице «Ролики» уже отдаёт публичный URL, дополнительно ничего
+  готовить не нужно.
+- Лимит 25 публикаций/сутки на аккаунт через API — для вашего объёма
+  контента запаса более чем достаточно.
