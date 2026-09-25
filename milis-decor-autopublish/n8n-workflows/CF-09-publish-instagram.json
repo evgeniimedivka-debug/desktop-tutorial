@@ -4,6 +4,7 @@
     {
       "id": "webhook01",
       "name": "Webhook: NocoDB approve (IG)",
+      "webhookId": "9e21ecde-3eed-4327-ba52-5883dd036521",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
@@ -15,8 +16,7 @@
         "path": "cf/publish-instagram",
         "responseMode": "responseNode",
         "options": {}
-      },
-      "webhookId": "9e21ecde-3eed-4327-ba52-5883dd036521"
+      }
     },
     {
       "id": "checksecret01",
@@ -148,7 +148,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "=https://graph.instagram.com/v21.0/{{ $env.IG_USER_ID }}/media",
+        "url": "=https://graph.instagram.com/v21.0/28719087177724126/media",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -163,19 +163,24 @@
             {
               "name": "caption",
               "value": "={{ $('NocoDB: получить ролик').item.json['Подпись_для_канала'] || $('NocoDB: получить ролик').item.json['Название'] || '' }}"
-            },
-            {
-              "name": "access_token",
-              "value": "={{ $env.IG_ACCESS_TOKEN }}"
             }
           ]
         },
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth"
+      },
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "67cwBTt7usiN1sgx",
+          "name": "Milis Decor - Instagram Access Token"
+        }
       }
     },
     {
       "id": "wait01",
       "name": "Подождать обработку",
+      "webhookId": "c0d5572f-6e82-46dc-8717-70f43e820bf4",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
@@ -185,8 +190,7 @@
       "parameters": {
         "amount": 15,
         "unit": "seconds"
-      },
-      "webhookId": "c0d5572f-6e82-46dc-8717-70f43e820bf4"
+      }
     },
     {
       "id": "igcheck01",
@@ -206,14 +210,18 @@
             {
               "name": "fields",
               "value": "status_code"
-            },
-            {
-              "name": "access_token",
-              "value": "={{ $env.IG_ACCESS_TOKEN }}"
             }
           ]
         },
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth"
+      },
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "67cwBTt7usiN1sgx",
+          "name": "Milis Decor - Instagram Access Token"
+        }
       }
     },
     {
@@ -259,21 +267,25 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "=https://graph.instagram.com/v21.0/{{ $env.IG_USER_ID }}/media_publish",
+        "url": "=https://graph.instagram.com/v21.0/28719087177724126/media_publish",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
             {
               "name": "creation_id",
               "value": "={{ $('IG: создать контейнер (Reels)').item.json.id }}"
-            },
-            {
-              "name": "access_token",
-              "value": "={{ $env.IG_ACCESS_TOKEN }}"
             }
           ]
         },
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth"
+      },
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "67cwBTt7usiN1sgx",
+          "name": "Milis Decor - Instagram Access Token"
+        }
       }
     },
     {
